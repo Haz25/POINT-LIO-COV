@@ -86,7 +86,7 @@ Clone the repository and catkin_make:
 
 ```
     cd ~/$A_ROS_DIR$/src
-    git clone https://github.com/hku-mars/Point-LIO.git
+    git clone https://github.com/Haz25/POINT-LIO-COV.git
     cd Point-LIO
     git submodule update --init
     cd ../..
