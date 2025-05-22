@@ -15,6 +15,27 @@
 using namespace std;
 using namespace Eigen;
 
+struct PointCov {
+    PCL_ADD_POINT4D;
+    float intensity;
+    Matrix3d cov;
+};
+
+struct PointPlane {
+    bool is_plane = false;
+    bool selected = false;
+
+    Vector3d point_b;
+    Vector3d point_w;
+    Matrix3d cov_b;
+    Matrix3d cov_w;
+
+    Vector3d normal;
+    double d;
+    double res;
+    Vector3d center;
+    Matrix<double, 6, 6> cov_plane;
+};
 
 typedef MTK::vect<3, double> vect3;
 typedef MTK::SO3<double> SO3;
@@ -95,6 +116,7 @@ typedef pcl::PointXYZRGB     PointTypeRGB;
 typedef pcl::PointCloud<PointType>    PointCloudXYZI;
 typedef pcl::PointCloud<PointTypeRGB> PointCloudXYZRGB;
 typedef vector<PointType, Eigen::aligned_allocator<PointType>>  PointVector;
+typedef vector<PointCov, Eigen::aligned_allocator<PointCov>>  PointCovVector;
 typedef Vector3d V3D;
 typedef Matrix3d M3D;
 typedef Vector3f V3F;
@@ -199,39 +221,159 @@ bool esti_normvector(Matrix<T, 3, 1> &normvec, const PointVector &point, const T
     return true;
 }
 
+/*
 template<typename T>
-bool esti_plane(Matrix<T, 4, 1> &pca_result, const PointVector &point, const T &threshold)
-{
-    Matrix<T, NUM_MATCH_POINTS, 3> A;
-    Matrix<T, NUM_MATCH_POINTS, 1> b;
-    A.setZero();
-    b.setOnes();
-    b *= -1.0f;
-
-    for (int j = 0; j < NUM_MATCH_POINTS; j++)
-    {
-        A(j,0) = point[j].x;
-        A(j,1) = point[j].y;
-        A(j,2) = point[j].z;
+bool esti_plane(Matrix<T, 4, 1> &pca_result, const PointVector &point, const T threshold) {
+    M3D C(M3D::Zero());
+    V3D m(V3D::Zero());
+    for (auto &p : point) {
+        V3D pnt(p.x, p.y, p.z);
+        m += pnt;
     }
+    m /= point.size();
+    for (auto &p : point) {
+        V3D vec(p.x - m(0), p.y - m(1), p.z - m(2));
+        C += vec * vec.transpose();
+    }
+    C /= point.size();
 
-    Matrix<T, 3, 1> normvec = A.colPivHouseholderQr().solve(b);
+    JacobiSVD<M3D> svd(C, ComputeFullU | ComputeFullV);
+    V3D u = svd.matrixU().block<3, 1>(0, 2);
+    V3D d = svd.singularValues();
+    
+    if (d(2) > threshold * threshold) return false;
 
+    pca_result(0) = u(0);
+    pca_result(1) = u(1);
+    pca_result(2) = u(2);
+    pca_result(3) = -u.dot(m);
+
+    return true;
+}
+*/
+
+template<typename T>
+bool esti_plane(Matrix<T, 4, 1> &pca_result, const PointVector &point, const T threshold) {
+    Matrix<T, 3, 3> H;
+    Matrix<T, 3, 1> r;
+    H.setZero();
+    r.setZero();
+
+    for (auto &pnt : point) {
+        V3F p(pnt.x, pnt.y, pnt.z);
+        H += p * p.transpose();
+        r -= p;
+    }
+    
+    Matrix<T, 3, 1> normvec = H.colPivHouseholderQr().solve(r);
     T n = normvec.norm();
+    T lambda = (normvec.dot((H - r * r.transpose() / point.size()) * normvec)) / (n * n * point.size());
+    //if (abs(normvec(2)) < 1.0e-20) return false;
+    if (lambda > threshold * threshold) return false;
+    
     pca_result(0) = normvec(0) / n;
     pca_result(1) = normvec(1) / n;
     pca_result(2) = normvec(2) / n;
     pca_result(3) = 1.0 / n;
 
-    for (int j = 0; j < NUM_MATCH_POINTS; j++)
-    {
-        if (fabs(pca_result(0) * point[j].x + pca_result(1) * point[j].y + pca_result(2) * point[j].z + pca_result(3)) > threshold)
-        {
-            return false;
-        }
-    }
     return true;
 }
+
+template<typename T>
+bool esti_plane(Matrix<T, 4, 1> &pca_result, const PointCovVector &point, const T threshold) {
+    Matrix<T, 3, 3> H;
+    Matrix<T, 3, 1> r;
+    H.setZero();
+    r.setZero();
+
+    for (auto &pnt : point) {
+        V3F p(pnt.x, pnt.y, pnt.z);
+        H += p * p.transpose();
+        r -= p;
+    }
+    
+    Matrix<T, 3, 1> normvec = H.colPivHouseholderQr().solve(r);
+    T n = normvec.norm();
+    T lambda = (normvec.dot((H - r * r.transpose() / point.size()) * normvec)) / (n * n * point.size());
+    //if (abs(normvec(2)) < 1.0e-20) return false;
+    if (lambda > threshold * threshold) return false;
+    
+    pca_result(0) = normvec(0) / n;
+    pca_result(1) = normvec(1) / n;
+    pca_result(2) = normvec(2) / n;
+    pca_result(3) = 1.0 / n;
+
+    return true;
+}
+
+template<typename T>
+bool esti_plane(PointPlane &ptpl, const PointCovVector &point, const T threshold) {
+    //==========
+    Matrix3f H;
+    Vector3f r;
+    H.setZero();
+    r.setZero();
+
+    for (auto &pnt : point) {
+        Vector3f p(pnt.x, pnt.y, pnt.z);
+        H += p * p.transpose();
+        r -= p;
+    }
+    
+    Vector3f normvec = H.colPivHouseholderQr().solve(r);
+    T n = normvec.norm();
+    T lambda = (normvec.dot((H - r * r.transpose() / point.size()) * normvec)) / (n * n * point.size());
+    //if (abs(normvec(2)) < 1.0e-20) return false;
+    if (lambda > threshold * threshold) return false;
+
+    ptpl.normal(0) = normvec(0) / n;
+    ptpl.normal(1) = normvec(1) / n;
+    ptpl.normal(2) = normvec(2) / n;
+    ptpl.d = 1.0 / n;
+
+    //=========
+
+    M3D C(M3D::Zero());
+    V3D m(V3D::Zero());
+    for (auto &p : point) {
+        V3D pnt(p.x, p.y, p.z);
+        m += pnt;
+    }
+    m /= point.size();
+    ptpl.center = m;
+    for (auto &p : point) {
+        V3D vec(p.x - m(0), p.y - m(1), p.z - m(2));
+        C += vec * vec.transpose();
+    }
+    C /= point.size();
+
+    JacobiSVD<M3D> svd(C, ComputeFullU | ComputeFullV);
+    V3D u1 = svd.matrixU().block<3, 1>(0, 0);
+    V3D u2 = svd.matrixU().block<3, 1>(0, 1);
+    V3D u3 = svd.matrixU().block<3, 1>(0, 2);
+    V3D d = svd.singularValues();
+
+    //if (d(2) > threshold * threshold) return false;
+
+    //ptpl.normal = u3;
+    //ptpl.d = -u3.dot(m);
+
+    M3D A = u1 * u1.transpose() / (d(2) - d(0)) + u2 * u2.transpose() / (d(2) - d(1));
+    ptpl.cov_plane.setZero();
+    for (auto &p : point) {
+        V3D vec(p.x - m(0), p.y - m(1), p.z - m(2));
+        M3D B = vec * u3.transpose() + vec.dot(u3) * Eye3d;
+        MatrixXd dfdp(6, 3);
+        dfdp.setZero();
+        dfdp.block<3, 3>(0, 0) = A * B / point.size();
+        dfdp(3, 0) = dfdp(4, 1) = dfdp(5, 2) = 1.0 / point.size();
+
+        ptpl.cov_plane += dfdp * p.cov * dfdp.transpose();
+    }
+
+    return true;
+}
+
 // const bool time_list(PointType &x, PointType &y); // {return (x.curvature < y.curvature);};
 // template<typename T>
 // const bool time_list(PointType &x, PointType &y) {return (x.curvature < y.curvature);};

@@ -211,7 +211,7 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
 
 bool sync_packages(MeasureGroup &meas)
 {
-    {
+    
     if (!imu_en)
     {
         if (!lidar_buffer.empty())
@@ -257,7 +257,7 @@ bool sync_packages(MeasureGroup &meas)
         }        
         return false;
     }
-
+    /*** ===================================== use imu ===================================== ***/ 
     if (lidar_buffer.empty() || imu_deque.empty())
     {
         return false;
@@ -305,8 +305,8 @@ bool sync_packages(MeasureGroup &meas)
     if (!lose_lid && !imu_pushed)
     { 
         /*** push imu data, and pop from imu buffer ***/
-        if (p_imu->imu_need_init_)
-        {
+        if (p_imu->imu_need_init_)  // do only when imu needs initialization !!!! if imu does not need initialization, it does nothing,   
+        {                           // which means that imu_deque is not empty
             double imu_time = imu_deque.front()->header.stamp.toSec();
             imu_next = *(imu_deque.front());
             meas.imu.shrink_to_fit();
@@ -326,8 +326,8 @@ bool sync_packages(MeasureGroup &meas)
     if (lose_lid && !imu_pushed)
     { 
         /*** push imu data, and pop from imu buffer ***/
-        if (p_imu->imu_need_init_)
-        {
+        if (p_imu->imu_need_init_)  // do only when imu needs initialization !!!! if imu does not need initialization, it does nothing
+        {                           // which means that imu_deque is not empty
             double imu_time = imu_deque.front()->header.stamp.toSec();
             meas.imu.shrink_to_fit();
 
@@ -350,5 +350,5 @@ bool sync_packages(MeasureGroup &meas)
     lidar_pushed = false;
     imu_pushed = false;
     return true;
-    }
+    
 }

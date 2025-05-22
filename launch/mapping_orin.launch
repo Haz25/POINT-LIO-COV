@@ -1,0 +1,15 @@
+<launch>
+<!-- Launch file for Velodyne16 VLP-16 LiDAR -->
+
+	<arg name="rviz" default="true" />
+
+	<node pkg="point_lio" type="pointlio_mapping" name="laserMapping" output="screen">
+	<rosparam command="load" file="$(find point_lio)/config/orin.yaml" />
+	</node>
+	<group if="$(arg rviz)">
+	<node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find point_lio)/rviz_cfg/loam_livox.rviz" />
+	</group>
+
+	launch-prefix="gdb -ex run --args"
+
+</launch>

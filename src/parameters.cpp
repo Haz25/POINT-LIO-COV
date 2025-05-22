@@ -5,6 +5,7 @@ double lidar_end_time = 0.0, first_lidar_time = 0.0, time_con = 0.0;
 double last_timestamp_lidar = -1.0, last_timestamp_imu = -1.0;
 int pcd_index = 0;
 IVoxType::Options ivox_options_;
+IVoxCovType::Options ivoxCov_options_;
 int ivox_nearby_type = 6;
 
 std::vector<double> extrinT(3, 0.0);
@@ -34,11 +35,16 @@ shared_ptr<Preprocess> p_pre;
 shared_ptr<ImuProcess> p_imu;
 double time_update_last = 0.0, time_current = 0.0, time_predict_last_const = 0.0, t_last = 0.0;
 double time_diff_lidar_to_imu = 0.0;
+extern double timediff_imu_wrt_lidar;
+int frame_cut_num = 10;
 
 double lidar_time_inte = 0.1, first_imu_time = 0.0;
 int cut_frame_num = 1, orig_odom_freq = 10;
 double online_refine_time = 20.0; //unit: s
 bool cut_frame_init = false; // true;
+double ranging_cov = 0.0025, angle_cov = 0.001;
+double sigma_num = 3.0;
+bool cov_on = false;
 
 MeasureGroup Measures;
 
@@ -64,7 +70,7 @@ void readParameters(ros::NodeHandle &nh)
   nh.param<int>("common/con_frame_num",con_frame_num,1);
   nh.param<bool>("common/cut_frame",cut_frame,false);
   nh.param<double>("common/cut_frame_time_interval",cut_frame_time_interval,0.1);
-  nh.param<double>("common/time_diff_lidar_to_imu",time_diff_lidar_to_imu,0.0);
+  nh.param<double>("common/time_diff_lidar_to_imu",timediff_imu_wrt_lidar,0.0);
   nh.param<double>("filter_size_surf",filter_size_surf_min,0.5);
   nh.param<double>("filter_size_map",filter_size_map_min,0.5);
   // nh.param<double>("cube_side_length",cube_len,2000);
@@ -83,6 +89,10 @@ void readParameters(ros::NodeHandle &nh)
   nh.param<double>("mapping/b_acc_cov",b_acc_cov,0.0001);
   nh.param<double>("mapping/imu_meas_acc_cov",imu_meas_acc_cov,0.1);
   nh.param<double>("mapping/imu_meas_omg_cov",imu_meas_omg_cov,0.1);
+  nh.param<double>("mapping/ranging_cov",ranging_cov,0.0025);
+  nh.param<double>("mapping/angle_cov",angle_cov,0.001);
+  nh.param<double>("mapping/sigma_num",sigma_num,3.0);
+  nh.param<bool>("mapping/cov_on",cov_on,false);
   nh.param<double>("preprocess/blind", p_pre->blind, 1.0);
   nh.param<int>("preprocess/lidar_type", lidar_type, 1);
   nh.param<int>("preprocess/scan_line", p_pre->N_SCANS, 16);
@@ -97,6 +107,7 @@ void readParameters(ros::NodeHandle &nh)
   nh.param<bool>("publish/path_en",path_en, true);
   nh.param<bool>("publish/scan_publish_en",scan_pub_en,1);
   nh.param<bool>("publish/scan_bodyframe_pub_en",scan_body_pub_en,1);
+  nh.param<int>("publish/frame_cut_num",frame_cut_num,10);
   nh.param<bool>("runtime_pos_log_enable", runtime_pos_log, 0);
   nh.param<bool>("pcd_save/pcd_save_en", pcd_save_en, false);
   nh.param<int>("pcd_save/interval", pcd_save_interval, -1);
@@ -105,18 +116,24 @@ void readParameters(ros::NodeHandle &nh)
   nh.param<double>("mapping/lidar_meas_cov",laser_point_cov,0.1);
 
   nh.param<float>("mapping/ivox_grid_resolution", ivox_options_.resolution_, 0.2);
+  nh.param<float>("mapping/ivox_grid_resolution", ivoxCov_options_.resolution_, 0.2);
   nh.param<int>("ivox_nearby_type", ivox_nearby_type, 18);
   if (ivox_nearby_type == 0) {
     ivox_options_.nearby_type_ = IVoxType::NearbyType::CENTER;
+    ivoxCov_options_.nearby_type_ = IVoxCovType::NearbyType::CENTER;
   } else if (ivox_nearby_type == 6) {
     ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY6;
+    ivoxCov_options_.nearby_type_ = IVoxCovType::NearbyType::NEARBY6;
   } else if (ivox_nearby_type == 18) {
     ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY18;
+    ivoxCov_options_.nearby_type_ = IVoxCovType::NearbyType::NEARBY18;
   } else if (ivox_nearby_type == 26) {
     ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY26;
+    ivoxCov_options_.nearby_type_ = IVoxCovType::NearbyType::NEARBY26;
   } else {
     // LOG(WARNING) << "unknown ivox_nearby_type, use NEARBY18";
     ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY18;
+    ivoxCov_options_.nearby_type_ = IVoxCovType::NearbyType::NEARBY18;
   }
     p_imu->gravity_ << VEC_FROM_ARRAY(gravity);
 }

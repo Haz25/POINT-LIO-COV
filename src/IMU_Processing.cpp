@@ -20,7 +20,9 @@ ImuProcess::ImuProcess()
   mean_acc      = V3D(0, 0, 0.0);
   mean_gyr      = V3D(0, 0, 0);
   after_imu_init_ = false;
-  state_cov.setIdentity();
+  //state_cov.setIdentity();
+  //state_cov *= 0.001;
+  state_cov.setZero();
 }
 
 ImuProcess::~ImuProcess() {}
@@ -107,21 +109,18 @@ void ImuProcess::Process(const MeasureGroup &meas, PointCloudXYZI::Ptr cur_pcl_u
 
     if (imu_need_init_)
     {
-      
+      /// The very first lidar frame
+      IMU_init(meas, init_iter_num);
+
+      imu_need_init_ = true;
+
+      if (init_iter_num > MAX_INI_COUNT)
       {
-        /// The very first lidar frame
-        IMU_init(meas, init_iter_num);
-
-        imu_need_init_ = true;
-
-        if (init_iter_num > MAX_INI_COUNT)
-        {
-          ROS_INFO("IMU Initializing: %.1f %%", 100.0);
-          imu_need_init_ = false;
-          *cur_pcl_un_ = *(meas.lidar);
-        }
-        // *cur_pcl_un_ = *(meas.lidar);
+        ROS_INFO("IMU Initializing: %.1f %%", 100.0);
+        imu_need_init_ = false;
+        *cur_pcl_un_ = *(meas.lidar);
       }
+      // *cur_pcl_un_ = *(meas.lidar);
       return;
     }
     if (!after_imu_init_) after_imu_init_ = true;

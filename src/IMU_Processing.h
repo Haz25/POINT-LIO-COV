@@ -40,7 +40,7 @@ class ImuProcess
   void set_acc_cov(const V3D &scaler);
   void Set_init(Eigen::Vector3d &tmp_gravity, Eigen::Matrix3d &rot);
 
-  MD(12, 12) state_cov = MD(12, 12)::Identity();
+  MD(12, 12) state_cov = 0.0 * MD(12, 12)::Identity();
   int    lidar_type;
   V3D    gravity_;
   bool   imu_en;

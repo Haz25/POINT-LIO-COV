@@ -15,9 +15,14 @@ extern PointCloudXYZI::Ptr normvec; //(new PointCloudXYZI(100000, 1));
 extern std::vector<int> time_seq;
 extern PointCloudXYZI::Ptr feats_down_body; //(new PointCloudXYZI());
 extern PointCloudXYZI::Ptr feats_down_world; //(new PointCloudXYZI());
+extern PointCovVector feats_down_body_cov;
+extern PointCovVector feats_down_world_cov;
+extern std::vector<PointPlane> ptpl_list;
 extern std::vector<V3D> pbody_list;
 extern std::vector<PointVector> Nearest_Points; 
-extern std::shared_ptr<IVoxType> ivox_;                    // localmap in ivox
+extern std::vector<PointCovVector> Nearest_PointCovs;
+extern std::shared_ptr<IVoxType> ivox_;    
+extern std::shared_ptr<IVoxCovType> ivoxCov_;                  // localmap in ivox
 extern std::vector<float> pointSearchSqDis;
 extern bool point_selected_surf[100000]; // = {0};
 extern std::vector<M3D> crossmat_list;
@@ -25,12 +30,14 @@ extern int effct_feat_num;
 extern int k;
 extern int idx;
 extern V3D angvel_avr, acc_avr, acc_avr_norm;
+extern V3D alpha, jerk;
 extern int feats_down_size;
 // extern std::vector<Eigen::Vector3d> normvec_holder;
 extern V3D Lidar_T_wrt_IMU; //(Zero3d);
 extern M3D Lidar_R_wrt_IMU; //(Eye3d);
 extern double G_m_s2;
 extern input_ikfom input_in;
+extern double knn_time;
 
 Eigen::Matrix<double, 24, 24> process_noise_cov_input();
 
@@ -38,9 +45,9 @@ Eigen::Matrix<double, 30, 30> process_noise_cov_output();
 
 //double L_offset_to_I[3] = {0.04165, 0.02326, -0.0284}; // Avia 
 //vect3 Lidar_offset_to_IMU(L_offset_to_I, 3);
-Eigen::Matrix<double, 24, 1> get_f_input(state_input &s, const input_ikfom &in);
+Eigen::Matrix<double, 24, 1> get_f_input(state_input &s, const input_ikfom &in, const double dt);
 
-Eigen::Matrix<double, 30, 1> get_f_output(state_output &s, const input_ikfom &in);
+Eigen::Matrix<double, 30, 1> get_f_output(state_output &s, const input_ikfom &in, const double dt);
 
 Eigen::Matrix<double, 24, 24> df_dx_input(state_input &s, const input_ikfom &in);
 
@@ -57,5 +64,10 @@ void h_model_output(state_output &s, Eigen::Matrix3d cov_p, Eigen::Matrix3d cov_
 void h_model_IMU_output(state_output &s, esekfom::dyn_share_modified<double> &ekfom_data);
 
 void pointBodyToWorld(PointType const * const pi, PointType * const po);
+void pointBodyToWorld(PointCov const * const pi, PointCov * const po);
+
+Matrix3d calcLidarCov(const Vector3d &p_lidar, const double ranging_cov, const double angle_cov);
+
+Matrix3d calcWorldCov(const Vector3d &p_lidar, const Matrix3d &cov_lidar, esekfom::esekf<state_output, 30, input_ikfom> &kf_output);
 
 #endif

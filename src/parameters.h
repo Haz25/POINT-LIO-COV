@@ -28,8 +28,10 @@
 
 #ifdef IVOX_NODE_TYPE_PHC
     using IVoxType = faster_lio::IVox<3, faster_lio::IVoxNodeType::PHC, PointType>;
+    using IVoxCovType = faster_lio::IVox<3, faster_lio::IVoxNodeType::PHC, PointCov>;
 #else
     using IVoxType = faster_lio::IVox<3, faster_lio::IVoxNodeType::DEFAULT, PointType>;
+    using IVoxCovType = faster_lio::IVox<3, faster_lio::IVoxNodeType::DEFAULT, PointCov>;
 #endif
 
 extern bool is_first_frame;
@@ -37,6 +39,7 @@ extern double lidar_end_time, first_lidar_time, time_con;
 extern double last_timestamp_lidar, last_timestamp_imu;
 extern int pcd_index;
 extern IVoxType::Options ivox_options_;
+extern IVoxCovType::Options ivoxCov_options_;
 extern int ivox_nearby_type;
 extern state_input state_in;
 extern state_output state_out;
@@ -63,6 +66,9 @@ extern bool   scan_pub_en, scan_body_pub_en;
 extern shared_ptr<Preprocess> p_pre;
 extern shared_ptr<ImuProcess> p_imu;
 extern bool is_first_frame;
+extern double ranging_cov, angle_cov;
+extern double sigma_num;
+extern bool cov_on;
 
 extern std::vector<double> extrinT;
 extern std::vector<double> extrinR;

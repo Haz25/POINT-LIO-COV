@@ -63,7 +63,7 @@ struct dyn_share_modified
 {
 	bool valid;
 	bool converge;
-	T M_Noise;
+	Eigen::Matrix<T, Eigen::Dynamic, 1> M_Noise;
 	Eigen::Matrix<T, Eigen::Dynamic, 1> z;
 	Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> h_x;
 	Eigen::Matrix<T, 6, 1> z_IMU;
@@ -87,7 +87,7 @@ public:
 	typedef SparseMatrix<scalar_type> spMt;
 	typedef Matrix<scalar_type, n, 1> vectorized_state;
 	typedef Matrix<scalar_type, m, 1> flatted_state;
-	typedef flatted_state processModel(state &, const input &);
+	typedef flatted_state processModel(state &, const input &, const double dt);
 	typedef Eigen::Matrix<scalar_type, m, n> processMatrix1(state &, const input &);
 	typedef Eigen::Matrix<scalar_type, m, process_noise_dof> processMatrix2(state &, const input &);
 	typedef Eigen::Matrix<scalar_type, process_noise_dof, process_noise_dof> processnoisecovariance;
@@ -137,13 +137,13 @@ public:
 	void predict(double &dt, processnoisecovariance &Q, const input &i_in, bool predict_state, bool prop_cov){
 		if (predict_state)
 		{
-			flatted_state f_ = f(x_, i_in);
+			flatted_state f_ = f(x_, i_in, dt);
 			x_.oplus(f_, dt);
 		}
 
 		if (prop_cov)
 		{
-			flatted_state f_ = f(x_, i_in);
+			flatted_state f_ = f(x_, i_in, dt);
 			// state x_before = x_;
 
 			cov_ f_x_ = f_x(x_, i_in);
@@ -170,7 +170,8 @@ public:
 				// MTK::SO3<scalar_type> res;
 				// res.w() = MTK::exp<scalar_type, 3>(res.vec(), seg_SO3, scalar_type(1/2));
 				F_x1.template block<3, 3>(idx, idx) = MTK::SO3<scalar_type>::exp(seg_SO3); // res.normalized().toRotationMatrix();	 	
-				res_temp_SO3 = MTK::A_matrix(seg_SO3);
+				//res_temp_SO3 = MTK::A_matrix(seg_SO3);
+				res_temp_SO3 = Eigen::Matrix3d::Identity();
 				for(int i = 0; i < n; i++){
 					f_x_final. template block<3, 1>(idx, i) = res_temp_SO3 * (f_x_. template block<3, 1>(dim, i));	
 				}
@@ -185,7 +186,8 @@ public:
 		dyn_share_modified<scalar_type> dyn_share;
 		state x_propagated = x_;
 		int dof_Measurement;
-		double m_noise;
+		//double m_noise;
+		Eigen::Matrix<scalar_type, Eigen::Dynamic, 1> m_noise;
 		for(int i=0; i<maximum_iter; i++)
 		{
 			dyn_share.valid = true;
@@ -216,7 +218,8 @@ public:
 				HPHT = h_x * PHT.topRows(12);
 				for (int m = 0; m < dof_Measurement; m++)
 				{
-					HPHT(m, m) += m_noise;
+					//HPHT(m, m) += m_noise;
+					HPHT(m, m) += m_noise(m);
 				}
 				K_= PHT*HPHT.inverse();
 			}
@@ -226,7 +229,8 @@ public:
 				Matrix<scalar_type, n, n> P_inv = P_.inverse();
 				P_inv.template block<12, 12>(0, 0) += HTH;
 				P_inv = P_inv.inverse();
-				K_ = P_inv.template block<n, 12>(0, 0) * h_x.transpose() * m_noise;
+				//K_ = P_inv.template block<n, 12>(0, 0) * h_x.transpose() * m_noise;
+				K_ = P_inv.template block<n, 12>(0, 0) * h_x.transpose() * m_noise.asDiagonal();
 			}
 			Matrix<scalar_type, n, 1> dx_ = K_ * z; // - h) + (K_x - Matrix<scalar_type, n, n>::Identity()) * dx_new; 
 			// state x_before = x_;

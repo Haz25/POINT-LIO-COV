@@ -25,6 +25,7 @@ extern bool lose_lid;
 extern sensor_msgs::Imu imu_last, imu_next;
 extern PointCloudXYZI::Ptr  ptr_con;
 extern double T1[MAXN], s_plot[MAXN], s_plot2[MAXN], s_plot3[MAXN], s_plot11[MAXN];
+extern int frame_cut_num;
 
 // extern sensor_msgs::Imu::ConstPtr imu_last_ptr;
 
